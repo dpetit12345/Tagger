@@ -15,15 +15,7 @@ namespace Tagger
 
         public void Save()
         {
-            //var file = TagLib.File.Create(this.FileName);
-            //var tags = (TagLib.Ogg.XiphComment)file.GetTag(TagLib.TagTypes.Xiph);
-            //tags.Clear();
-            //foreach (string key in Tags.Keys)
-            //{
-            //    var newtag = file.GetTag(TagLib.TagTypes.Xiph, true);
 
-
-            //}
             using (FlacLibSharp.FlacFile flac = new FlacLibSharp.FlacFile(FileName))
             {
                 // First get the existing VorbisComment (if any)
@@ -52,7 +44,8 @@ namespace Tagger
                     {
                         comment.Remove(updTag);
                     }
-                    comment.Add(updTag, ChangedTags[updTag]);
+                    var values = Tags[updTag].GetSaveValues;
+                    comment.Add(updTag, values);
                 }
 
                 //Add ones to be added
@@ -63,7 +56,7 @@ namespace Tagger
                         //This shouldn't ever happen, but just in case.
                         comment.Remove(addTag);
                     }
-                    comment.Add(addTag, AddedTags[addTag]);
+                    comment.Add(addTag, Tags[addTag].GetSaveValues);
 
                 }
 
@@ -75,6 +68,7 @@ namespace Tagger
         public TaggedFile(string fileName)
         {
             this.FileName = fileName;
+            char[] delim = new char[] { ';' };
             using (FlacLibSharp.FlacFile file = new FlacLibSharp.FlacFile(fileName))
             {
                 var vorbisComment = file.VorbisComment;
@@ -86,8 +80,12 @@ namespace Tagger
                         List<string> values = new List<string>();
                         foreach (var value in tag.Value)
                         {
-                            Console.WriteLine("{0}: {1}", tag.Key, tag.Value);
-                            values.Add(value);
+                            //Console.WriteLine("{0}: {1}", tag.Key, tag.Value);
+                            foreach (string part in value.Split(delim))
+                            {
+                                values.Add(part.Trim());
+                            }
+                            
                         }
                         Tags.Add(tag.Key.ToLower(), new Tag(tag.Key.ToLower(), values));
 
@@ -178,16 +176,45 @@ namespace Tagger
 
     public class Tag
     {
+        private readonly string[] singleTagsOnly = { "ALBUM", "ALBUMARTIST", "ALBUM ARTIST", "EPOQUE", "ORCHESTRA" };
         public List<string> origValues = new List<string>();
         public List<string> values = new List<string>();
         public string Key;
+
+        public bool IsSingleLineTag
+        {
+            get
+            {
+                foreach (string s in singleTagsOnly)
+                {
+                    if (Key.ToUpper() == s) return true;
+                }
+                return false;
+                
+            }
+        }
+
+        public List<string> GetSaveValues
+        {
+            get
+            {
+                if (IsSingleLineTag)
+                {
+                    return new List<string>(new string[] { string.Join("; ", values.ToArray<string>()) });
+                }
+                else
+                {
+                    return values;
+                }
+                    
+            }
+        }
 
         internal Tag (string key, List<string> values)
         {
             this.Key = key;
             this.origValues = values;
             this.values = values;
-
         }
 
         public Tag(string key)
